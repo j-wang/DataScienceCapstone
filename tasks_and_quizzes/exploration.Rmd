@@ -1,0 +1,158 @@
+---
+title: "Milestones Report on the Swiftkey Datasets"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE}
+# Required libraries, functions, and setting random seed
+library(ggplot2)
+library(reshape2)
+library(tm)
+library(wordcloud)
+library(slam)
+source('task1.R')
+set.seed(153)
+```
+
+### Summary
+
+Below is an exploratory analysis and description of the datasets we received from Swiftkey. As a whole, we have a fairly diverse set of text that is chunked in a short lines. While we can glean some of the thematic elements of each dataset, as can be seen best from the wordclouds below, we will need to use more complex language models to truly tease out context and do prediction based on these datasets.
+
+### Description of Datasets (Raw Characters and Lines)
+
+We have three datasets from Swiftkey: `blogs`, `news`, and `twitter`. These correspond to text from, as you would expect, blogs, news sites, and Twitter. These datasets contain .9 billion, 1 billion, and 2.4 billion lines of text respectively that we have to work with.
+
+Each line is generally short. For these three datasets, the mean characters per line are between 69 and 230. However, there are extreme outliers that character counts as large as 2560 (for news). This can be seen in the density plot below -- most lines are fairly short and are largely clustered around the mean, but there is a long tail of outliers.
+
+```{r init, echo=FALSE, cache=TRUE, warning=FALSE, message=FALSE}
+twitter <- samplefile('../data/en_US/en_US.twitter.txt', .1)
+blogs <- samplefile('../data/en_US/en_US.blogs.txt', .1)
+news <- samplefile('../data/en_US/en_US.news.txt', .1)
+
+for (i in c('twitter', 'blogs', 'news')) {
+  varname <- paste(i, 'count', sep='_')
+  numchar <- nchar(get(i))
+  assign(varname, as.data.frame(numchar))
+}
+
+common_rows <- min(sapply(list(twitter_count, blogs_count, news_count), nrow))
+
+merged_counts <- data.frame(twitter_count[1:common_rows, ], 
+                            blogs_count[1:common_rows, ], 
+                            news_count[1:common_rows, ])
+names(merged_counts) <- c('twitter', 'blogs', 'news')
+
+char_counts <- melt(merged_counts)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(char_counts, aes(value)) + 
+  geom_density() + 
+  facet_grid(variable ~ .) + 
+  xlab("Characters per Line") + 
+  ylab("Density") + 
+  ggtitle("Distribution of Characters per Line")
+```
+
+### Granular Counts
+The more detailed statistics for each dataset's character counts per line are below:
+
+#### Blogs
+```{r, echo=FALSE}
+summary(blogs_count)
+```
+
+#### News
+```{r, echo=FALSE}
+summary(news_count)
+```
+
+#### Twitter
+```{r, echo=FALSE}
+summary(twitter_count)
+```
+
+### Dataset Word Content
+
+In order to better understand what we're working with, we need to take a look at the underlying content (the words) in the datasets. Below, I've laid out the top 30 words from each dataset. Note that I've removed common "stopwords" like "the", "and", etc. that would otherwise completely dominate our picture of the dataset.
+
+```{r proc, echo=FALSE, cache=TRUE}
+processToDF <- function(v) {
+  corpus <- VCorpus(VectorSource(v))
+  corpus <- tm_map(corpus, stripWhitespace)  # remove whitespace
+  corpus <- tm_map(corpus, content_transformer(tolower))  # lowercase all
+  corpus <- tm_map(corpus, removeWords, stopwords("english"))  # rm stopwords
+  corpus <- tm_map(corpus, stemDocument)  # stem words
+  
+  tdm <- TermDocumentMatrix(corpus)
+  freq <- sort(row_sums(tdm, na.rm=TRUE), decreasing=TRUE)
+  word <- names(freq)
+  data.frame(word=word, freq=freq)
+}
+
+# Process vectors into dataframe of word counts
+tDF <- processToDF(twitter)
+bDF <- processToDF(blogs)
+nDF <- processToDF(news)
+
+# Stack them all together
+tDF$dataset <- as.factor("twitter")
+bDF$dataset <- as.factor("blogs")
+nDF$dataset <- as.factor("news")
+DF <- rbind(tDF, bDF, nDF)
+
+DFsamp <- rbind(tDF[1:30, ], bDF[1:30, ], nDF[1:30, ])
+sampAgg <- aggregate(. ~ word, DFsamp[, 1:2], sum)
+DFsamp <- merge(DFsamp, sampAgg, by="word")
+names(DFsamp)[2] <- "freq"
+DFsamp$word <- reorder(DFsamp$word, DFsamp$freq.y)
+```
+
+```{r, echo=FALSE}
+ggplot(DFsamp, aes(word, freq, fill=dataset)) + 
+  geom_bar(stat="identity") + 
+  xlab("Word Frequency") +
+  ylab("Words") +
+  ggtitle("Top 30 Words From Each Dataset") +
+  coord_flip()
+```
+
+There are two things of note in the above picture.
+
+1. The frequency of words drops off quickly. For example, the top 10 words across datasets are far more common than the next 10 (almost double the frequency).
+
+2. There are many "ambiguous" words in the top few words. For example, "just" may or may not be a grammatical construct ("I *just* went to the store" vs. *just* cause, or "I *will* go to the store" vs. iron *will*). This, unsurprisingly, shows that we'll need to use more complex language models than simply word frequencies to tease out context -- we'll probably want to look at word pairs at least, and possibly triples, quads, etc. if not full-blown sematics (basically, model the grammar of sentences).
+
+For a better look, I've included word clouds for each dataset below. The size corresponds with the freqnecy that the word is exhibited. Using this view, we can start to see some thematic differences between the datasets. For example, "said" is a fairly prominent word in `news` vs. "love" and "thank" in `twitter`. These clouds show all words that have occurred at least 1000 times in our datasets.
+
+#### Blogs
+```{r, echo=FALSE, cache=TRUE, warning=FALSE}
+wordcloud(words=bDF$word, 
+          freq=bDF$freq,
+          random.order=FALSE,
+          min.freq=1000,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+#### News
+```{r, echo=FALSE, cache=TRUE, warning=FALSE}
+wordcloud(words=nDF$word, 
+          freq=nDF$freq,
+          random.order=FALSE,
+          min.freq=1000,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+#### Twitter
+```{r, echo=FALSE, cache=TRUE, warning=FALSE}
+wordcloud(words=tDF$word, 
+          freq=tDF$freq,
+          random.order=FALSE,
+          min.freq=1000,
+          colors=brewer.pal(8, "Dark2"))
+```
+
+```{r, echo=FALSE}
+#library(RWeka)
+#BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+```

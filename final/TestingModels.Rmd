@@ -1,0 +1,363 @@
+---
+title: "Model Exploration"
+author: "James Wang"
+date: "December 12, 2014"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(ggplot2)
+library(reshape2)
+library(tm)
+library(slam)
+library(data.table)
+source('utility.R')
+library(RWeka)
+
+options(mc.cores=1)
+```
+
+# Testing N-Gram Models
+
+## Sample from Files
+
+```{r, cache=TRUE}
+twitter <- samplefile('../data/en_US/en_US.twitter.txt', .02)
+blogs <- samplefile('../data/en_US/en_US.blogs.txt', .02)
+news <- samplefile('../data/en_US/en_US.news.txt', .02)
+```
+
+## Get Corpus
+
+```{r}
+getCorpus <- function(v) {
+  corpus <- VCorpus(VectorSource(v))
+  corpus <- tm_map(corpus, stripWhitespace)  # remove whitespace
+  corpus <- tm_map(corpus, content_transformer(tolower))  # lowercase all
+ # corpus <- tm_map(corpus, removeWords, stopwords("english"))  # rm stopwords
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, removeNumbers)
+  corpus 
+}
+```
+
+```{r, cache=TRUE}
+tCorp <- getCorpus(twitter)
+bCorp <- getCorpus(blogs)
+nCorp <- getCorpus(news)
+```
+
+## Grams
+
+```{r}
+UnigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+TrigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+QuadgramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 4, max = 4))
+```
+
+
+```{r}
+tTdm_2 <- TermDocumentMatrix(tCorp, control = list(tokenize = BigramTokenizer)) 
+tTdm_3 <- TermDocumentMatrix(tCorp, control = list(tokenize = TrigramTokenizer))
+tTdm_4 <- TermDocumentMatrix(tCorp, control = list(tokenize = QuadgramTokenizer))
+
+bTdm_2 <- TermDocumentMatrix(bCorp, control = list(tokenize = BigramTokenizer)) 
+bTdm_3 <- TermDocumentMatrix(bCorp, control = list(tokenize = TrigramTokenizer))
+bTdm_4 <- TermDocumentMatrix(bCorp, control = list(tokenize = QuadgramTokenizer))
+
+nTdm_2 <- TermDocumentMatrix(nCorp, control = list(tokenize = BigramTokenizer)) 
+nTdm_3 <- TermDocumentMatrix(nCorp, control = list(tokenize = TrigramTokenizer))
+nTdm_4 <- TermDocumentMatrix(nCorp, control = list(tokenize = QuadgramTokenizer))
+```
+
+### Frequencies
+
+```{r}
+tdmToFreq <- function(tdm) {
+  freq <- sort(row_sums(tdm, na.rm=TRUE), decreasing=TRUE)
+  word <- names(freq)
+  data.table(word=word, freq=freq)
+}
+```
+
+```{r}
+processGram <- function(dt) {
+  dt[, c("pre", "cur"):=list(unlist(strsplit(word, "[ ]+?[a-z]+$")), 
+                                    unlist(strsplit(word, "^([a-z]+[ ])+"))[2]), 
+     by=word]
+}
+```
+
+## Bigram
+
+```{r}
+tFreq_2 <- tdmToFreq(tTdm_2)
+nFreq_2 <- tdmToFreq(nTdm_2)
+bFreq_2 <- tdmToFreq(bTdm_2)
+```
+
+
+```{r}
+processGram(nFreq_2)
+processGram(bFreq_2)
+
+tFreq_2[, c("pre", "cur"):=list(unlist(strsplit(word, "[ ]+?[a-z]+$")), 
+                                unlist(strsplit(word, "^([a-z]+[ ])+"))[2]), 
+        by=word]
+head(tFreq_2)
+```
+
+```{r}
+de_max <- max(tFreq_2[pre=="right"]$freq)
+tFreq_2[pre == "right" & freq == de_max]
+```
+
+## Trigram
+
+```{r}
+tFreq_3 <- tdmToFreq(tTdm_3)
+nFreq_3 <- tdmToFreq(nTdm_3)
+bFreq_3 <- tdmToFreq(bTdm_3)
+```
+
+```{r}
+processGram(nFreq_3)
+processGram(bFreq_3)
+
+tFreq_3[, c("pre", "cur"):=list(unlist(strsplit(word, "[ ]+?[a-z]+$")), 
+                                unlist(strsplit(word, "^([a-z]+[ ])+"))[2]), 
+        by=word]
+head(tFreq_3)
+```
+
+```{r}
+de_max_3 <- max(tFreq_3[pre == "happy birthday"]$freq)
+tFreq_3[pre == "happy birthday" & freq == de_max_3]
+```
+
+## Quadgram
+```{r}
+tFreq_4 <- tdmToFreq(tTdm_4)
+nFreq_4 <- tdmToFreq(nTdm_4)
+bFreq_4 <- tdmToFreq(bTdm_4)
+
+processGram(tFreq_4)
+processGram(nFreq_4)
+processGram(bFreq_4)
+```
+
+## Stupid Backoff
+
+From Brants et al 2007.
+Find if n-gram has been seen, if not, multiply by alpha and back off to lower gram model.
+
+## Classification for Context
+
+### TF-IDF Classification
+
+Classify sentences to capture long-range context. TF-IDF terms as features. Classify into one of the three
+data sets. Use logistic regression or SVM to classify.
+
+```{r}
+# tTdm_tfidf <- TermDocumentMatrix(tCorp, control=list(weighting=weightTfIdf))
+# bTdm_tfidf <- TermDocumentMatrix(bCorp, control=list(weighting=weightTfIdf))
+# nTdm_tfidf <- TermDocumentMatrix(nCorp, control=list(weighting=weightTfIdf))
+```
+
+Label each one set as one, glm train against the other two. Maybe take another sample from the dataset
+and test how well the classification works.
+
+- Dump things into an SQLite database
+- Do requests for processed *-grams
+- Logistic regression on TF-IDF, find group I should be looking up
+- Stupid Backoff on specific training set selected
+
+- Long range and short range context
+
+### Naive Bayes
+
+Use a Naive Bayes classifier instead, since TF-IDF is going to be difficult on an unseen sentence given
+by the user. Instead, take the entire term-document matrix and learn on what words generally indicate
+membership in a specific group (twitter, news, or blogs; 1, 2, 3 respectively).
+
+```{r}
+library(e1071)
+
+# Training Set
+tTrain <- samplefile('../data/en_US/en_US.twitter.txt', .001) %>% 
+  getCorpus %>% 
+  tm_map(removeWords, stopwords("english"))
+bTrain <- samplefile('../data/en_US/en_US.blogs.txt', .001) %>% 
+  getCorpus %>% 
+  tm_map(removeWords, stopwords("english"))
+nTrain <- samplefile('../data/en_US/en_US.news.txt', .001) %>% 
+  getCorpus %>% 
+  tm_map(removeWords, stopwords("english"))
+
+training.set <- TermDocumentMatrix(c(tTrain, bTrain, nTrain), control=list(wordLengths=c(1,Inf)))
+training.labels <- c(rep(1, length(tTrain)), rep(2, length(nTrain)), rep(3, length(bTrain)))
+
+# Testing Set
+tTest <- samplefile('../data/en_US/en_US.twitter.txt', .0001) %>% 
+  getCorpus %>% 
+  tm_map(removeWords, stopwords("english"))
+bTest <- samplefile('../data/en_US/en_US.blogs.txt', .0001) %>% 
+  getCorpus %>% 
+  tm_map(removeWords, stopwords("english"))
+nTest <- samplefile('../data/en_US/en_US.news.txt', .0001) %>% 
+  getCorpus %>% 
+  tm_map(removeWords, stopwords("english"))
+
+test.set <- TermDocumentMatrix(c(tTest, bTest, nTest), control=list(wordLengths=c(1,Inf)))
+test.labels <- c(rep(1, length(tTest)), rep(2, length(nTest)), rep(3, length(bTest)))
+```
+
+Training the Naive Bayes classifier:
+
+```{r}
+classifier <- naiveBayes(as.matrix(t(training.set)), as.factor(training.labels))
+
+table(predict(classifier, as.matrix(t(test.set))), test.labels, dnn=list('predicted', 'actual'))
+
+# This does terribly...
+```
+
+## Create SQL Database of Grams
+
+```{r}
+library(RSQLite)
+db <- dbConnect(SQLite(), dbname="trained.db")
+dbSendQuery(conn=db,
+            "CREATE TABLE NGrams
+            (gram TEXT,
+             pre TEXT,
+             word TEXT,
+             freq INTEGER,
+             type INTEGER,
+             n INTEGER, PRIMARY KEY (gram, type))")
+
+bulk_insert <- function(sql, key_counts)
+{
+    dbBegin(db)
+    dbGetPreparedQuery(db, sql, bind.data = key_counts)
+    dbCommit(db)
+}
+
+translation <- c('twitter', 'news', 'blogs')
+```
+
+```{r}
+# Done in a very not DRY way, since I'm interactively testing each one...
+
+sql_t4 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 1, 4)"
+bulk_insert(sql_t4, tFreq_4)
+
+sql_t3 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 1, 3)"
+bulk_insert(sql_t3, tFreq_3)
+
+sql_t2 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 1, 2)"
+bulk_insert(sql_t2, tFreq_2)
+
+sql_n4 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 2, 4)"
+bulk_insert(sql_n4, nFreq_4)
+
+sql_n3 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 2, 3)"
+bulk_insert(sql_n3, nFreq_3)
+
+sql_n2 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 2, 2)"
+bulk_insert(sql_n2, nFreq_2)
+
+sql_b4 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 3, 4)"
+bulk_insert(sql_b4, bFreq_4)
+
+sql_b3 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 3, 3)"
+bulk_insert(sql_b3, bFreq_3)
+
+sql_b2 <- "INSERT INTO NGrams VALUES ($word, $pre, $cur, $freq, 3, 2)"
+bulk_insert(sql_b2, bFreq_2)
+```
+
+## Prediction
+
+```{r}
+library(magrittr)
+library(stringr)
+
+ngram_backoff <- function(raw, cluster, db) {
+    max = 2  # max n-gram - 1
+  
+    # process sentence
+    sentence <- tolower(raw) %>%
+#        removeWords(words=stopwords("english")) %>%
+        removePunctuation %>%
+        removeNumbers %>%
+        stripWhitespace %>%
+        str_trim %>%
+        strsplit(split=" ") %>%
+        unlist
+    
+    for (i in min(length(sentence), max):1) {
+        gram <- paste(tail(sentence, i), collapse=" ")
+        sql <- paste("SELECT word, MAX(freq) FROM NGrams WHERE type==", 
+                     cluster, " AND pre=='", paste(gram), "'",
+                     " AND n==", i + 1,sep="")
+        res <- dbSendQuery(conn=db, sql)
+        predicted <- dbFetch(res, n=-1)
+        
+        if (!is.na(predicted[1])) return(predicted)
+    }
+    
+    return("Nothing")
+}
+```
+
+```{r}
+test_sentence <- "This is such a great day. The happy Birthday!!"
+ngram_backoff("I am going to the", 1, db)
+```
+
+## Merged Model
+
+### Process Into SQLite
+```{r}
+library(RSQLite)
+
+tdm_2 <- TermDocumentMatrix(c(tCorp, bCorp, nCorp), control = list(tokenize = BigramTokenizer)) 
+tdm_3 <- TermDocumentMatrix(c(tCorp, bCorp, nCorp), control = list(tokenize = TrigramTokenizer))
+tdm_4 <- TermDocumentMatrix(c(tCorp, bCorp, nCorp), control = list(tokenize = QuadgramTokenizer))
+
+db <- dbConnect(SQLite(), dbname="train.db")
+dbSendQuery(conn=db,
+            "CREATE TABLE NGram
+            (gram TEXT,
+             pre TEXT,
+             word TEXT,
+             freq INTEGER,
+             n INTEGER, PRIMARY KEY (gram))")
+
+bulk_insert <- function(sql, key_counts)
+{
+    dbBegin(db)
+    dbGetPreparedQuery(db, sql, bind.data = key_counts)
+    dbCommit(db)
+}
+
+# Get word frequencies
+freq_4 <- tdmToFreq(tdm_4)
+freq_3 <- tdmToFreq(tdm_3)
+freq_2 <- tdmToFreq(tdm_2)
+
+# Process with pre and current word
+processGram(freq_4)
+processGram(freq_3)
+processGram(freq_2)
+
+# Insert into SQLite database
+sql_4 <- "INSERT INTO NGram VALUES ($word, $pre, $cur, $freq, 4)"
+bulk_insert(sql_4, freq_4)
+sql_3 <- "INSERT INTO NGram VALUES ($word, $pre, $cur, $freq, 3)"
+bulk_insert(sql_3, freq_3)
+sql_2 <- "INSERT INTO NGram VALUES ($word, $pre, $cur, $freq, 2)"
+bulk_insert(sql_2, freq_2)
+```
