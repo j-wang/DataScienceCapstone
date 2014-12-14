@@ -9,7 +9,7 @@ ngram_backoff <- function(raw, db) {
   # Find if n-gram has been seen, if not, multiply by alpha and back off
   # to lower gram model. Alpha unnecessary here, independent backoffs.
   
-  max = 2  # max n-gram - 1
+  max = 3  # max n-gram - 1
   
   # process sentence, don't remove stopwords
   sentence <- tolower(raw) %>%
