@@ -9,7 +9,7 @@ shinyUI(fluidPage(
   hr(),
   
   fluidRow(width=2,
-           p("Enter a sentence, press the 'Predict next' button, and see what the 
+           p("Enter a sentence, hit enter (or press the 'Predict next' button), and see what the 
              algorithm thinks will come next!"),
            p("The underlying model is an",
              a(href="http://en.wikipedia.org/wiki/N-gram", "n-gram"),
@@ -23,7 +23,7 @@ shinyUI(fluidPage(
   sidebarLayout(
     sidebarPanel(
       textInput("text", label = h3("Input"), value = "happy birthday to"),
-      helpText("Type in a sentence above, press the button below, and the results will display to the right."),
+      helpText("Type in a sentence above, hit enter (or press the button below), and the results will display to the right."),
       submitButton("Predict next"),
       hr()
     ),

@@ -6,7 +6,7 @@ date: December 14, 2014
 Overview
 ========================================================
 
-If you haven't tried out the app, go [here]("http://locahost") to try it!
+If you haven't tried out the app, go [here](https://j-wang.shinyapps.io/ngram_predictor/) to try it!
 
 - Predicts next word
 - Shows you top 5 other possibilities
@@ -35,7 +35,7 @@ like PostgreSQL)
 [original paper](http://www.cs.columbia.edu/~smaskey/CS6998-0412/supportmaterial/langmodel_mapreduce.pdf)
 trained on 2 trillion tokens
 - Stupid Backoff performance approaches more sophisticated models like Kneser-Ney as we increase amount of data
-    - Here, we merely use 1.4% of the data provided by SwiftKey and Coursera to fit into the 100mb limit
+    - Here, we merely use 1.5% of the data provided by SwiftKey and Coursera to fit into the 100mb limit
 
 Further Exploration
 ========================================================
