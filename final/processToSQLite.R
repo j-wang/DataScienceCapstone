@@ -3,9 +3,9 @@ library(tm)
 library(RSQLite)
 source('utility.R')
 
-twitter <- samplefile('../data/en_US/en_US.twitter.txt', .014)
-blogs <- samplefile('../data/en_US/en_US.blogs.txt', .014)
-news <- samplefile('../data/en_US/en_US.news.txt', .014)
+twitter <- samplefile('../data/en_US/en_US.twitter.txt', .015)
+blogs <- samplefile('../data/en_US/en_US.blogs.txt', .015)
+news <- samplefile('../data/en_US/en_US.news.txt', .015)
 
 tCorp <- getCorpus(twitter)
 bCorp <- getCorpus(blogs)

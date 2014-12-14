@@ -10,7 +10,7 @@ If you haven't tried out the app, go [here]("http://locahost") to try it!
 
 - Predicts next word
 - Shows you top 5 other possibilities
-- Can be used to string together entire sentences!
+- Can be used to string together continuous, sensible sentences (even with the limited amount of data it's using now)
 
 How To Use the App
 ========================================================

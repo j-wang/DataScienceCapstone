@@ -12,7 +12,7 @@ shinyServer(function(input, output) {
   output$sentence <- renderText({input$text})
   output$predicted <- renderText({
     out <- dbout()
-    if (out[1] == "Sorry! You've stumped me, I don't know what would come next.") {
+    if (out[[1]] == "Sorry! You've stumped me, I don't know what would come next.") {
       return(out)
     } else {
       return(unlist(out)[1])

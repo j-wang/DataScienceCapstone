@@ -49,6 +49,7 @@ venv
 # Caches
 */exploration_cache/*
 */exploration_files/*
+*/presentation-figure/*
 
 # Data
 data/*

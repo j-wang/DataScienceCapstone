@@ -2,6 +2,7 @@
 library(magrittr)
 library(stringr)
 library(RSQLite)
+library(tm)
 
 ngram_backoff <- function(raw, db) {
   # From Brants et al 2007.
@@ -27,8 +28,9 @@ ngram_backoff <- function(raw, db) {
     res <- dbSendQuery(conn=db, sql)
     predicted <- dbFetch(res, n=-1)
     names(predicted) <- c("Next Possible Word", "Score (Adjusted Freq)")
+    print(predicted)
     
-    if (!is.na(predicted[1])) return(predicted)
+    if (nrow(predicted) > 0) return(predicted)
   }
   
   return("Sorry! You've stumped me, I don't know what would come next.")
