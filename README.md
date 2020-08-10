@@ -1,4 +1,4 @@
-## John Hopkins School of Public Health
+## Johns Hopkins School of Public Health
 ### Coursera Data Science Capstone
 
 This repository contains code for the final N-gram model for my Coursera
